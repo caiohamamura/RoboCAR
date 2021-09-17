@@ -1,0 +1,63 @@
+from python_anticaptcha import AnticaptchaClient, ImageToTextTask
+import io, requests, urllib.parse, os, zipfile
+
+def requisitar_captcha(api_key, session, municipio_id):
+    url_captcha = 'http://www.car.gov.br/publico/municipios/captcha?id={}'.format(municipio_id)
+    request_url = session.get(url_captcha)
+    img_data = request_url.content
+    with open('captcha.png', 'wb') as handler:
+        handler.write(img_data)
+    captcha_path = os.getcwd()
+    captcha_full_path = captcha_path + '\\' + 'captcha.png'
+    captcha_fp = open(captcha_full_path, 'rb')
+    client = AnticaptchaClient(api_key)
+    task = ImageToTextTask(captcha_fp)
+    job = client.createTask(task)
+    job.join()
+    print(job.get_captcha_text())
+    captcha = job.get_captcha_text()
+    captcha_fp.close()
+    if os.path.exists(captcha_full_path):
+        os.remove(captcha_full_path)
+    else:
+        print('The file does not exist')
+    return captcha, captcha_path
+
+def requisitar_download(session, municipio_id, email_string, captcha, captcha_path):
+    email = urllib.parse.quote(email_string)
+    download_url = 'http://www.car.gov.br/publico/municipios/shapefile?municipio%5Bid%5D={}&email={}&captcha={}'.format(municipio_id, email,
+                                                                                                                captcha)
+    print(download_url)
+    request_url = session.get(download_url, stream=True)
+
+    #check folder
+    path_output = captcha_path + '/' + str(municipio_id)
+    CHECK_FOLDER = os.path.isdir(path_output)
+    if not CHECK_FOLDER:
+        os.makedirs(path_output)
+        print('created folder : ', path_output)
+    else:
+        print(path_output, 'folder already exists')
+        os.chdir(path_output)
+    os.chdir(path_output)
+    # get zipfile and download to path output folder - by MUN id
+    z = zipfile.ZipFile(io.BytesIO(request_url.content))
+    z.extractall('.')
+    os.chdir(captcha_path)
+
+def download(session, api_key, email_string, municipio_id):
+    captcha, captcha_path, = requisitar_captcha(api_key=api_key, session=session, municipio_id=municipio_id)
+    requisitar_download(session=session, municipio_id= municipio_id, email_string= email_string, captcha=captcha, captcha_path=captcha_path)
+
+if __name__ == '__main__':
+
+    api_key = 
+    email_string = 'email@com'
+
+    #initialize session
+    session = requests.Session()
+    init_url = 'https://www.car.gov.br/publico/imoveis/index'
+    req = session.get(init_url)
+    #4214508
+    municipios = [4215307]
+    [download(session, api_key, email_string, municipio_id) for municipio_id in municipios]
